@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D Neon Typing Arena Preview</title>
+<style>
+*{box-sizing:border-box}body{margin:0;overflow:hidden;background:#02030a;color:#fff;font-family:Arial,sans-serif}
+canvas{display:block}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+.top{position:absolute;top:18px;left:20px;right:20px;display:flex;justify-content:space-between;gap:15px;align-items:flex-start}
+.logo{font-size:24px;font-weight:900;color:#00f6ff;text-shadow:0 0 12px #00f6ff}
+.stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.stat{background:#071127cc;border:1px solid #00f6ff55;border-radius:12px;padding:8px 13px;text-align:center}.stat small{display:block;color:#8ba3c7;font-size:10px}.stat b{display:block;color:#00f6ff;font-size:18px;margin-top:3px}
+#target{position:absolute;top:22%;left:50%;transform:translateX(-50%);width:min(850px,90%);padding:20px;text-align:center;font-size:clamp(19px,3vw,32px);line-height:1.7;background:#030a1dcc;border:1px solid #00f6ff33;border-radius:18px;box-shadow:0 0 35px #00f6ff12}.correct{color:#39ff88;text-shadow:0 0 10px #39ff88}.wrong{color:#ff315d}.current{background:white;color:#02030a;border-radius:3px;padding:0 3px;box-shadow:0 0 18px white}
+#combo{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);font-size:50px;font-weight:900;color:#ffdc00;text-shadow:0 0 12px #ffdc00,0 0 30px #ff7b00;opacity:0;transition:.15s}#combo.show{opacity:1;transform:translate(-50%,-50%) scale(1.12)}
+#bar{position:absolute;bottom:22px;left:20px;width:280px}.label{font-size:11px;color:#a9bdd9;margin-bottom:6px}.track{height:11px;background:#080d1d;border-radius:20px;overflow:hidden;margin-bottom:10px}.fill{height:100%;width:0%;background:linear-gradient(90deg,#00f6ff,#7c3cff,#ff2bd6);box-shadow:0 0 15px #00f6ff;transition:.25s}.energy{width:100%;background:linear-gradient(90deg,#39ff88,#00f6ff)}
+#start{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#10265dcc,#02030af5)}.card{width:min(620px,90%);padding:40px;text-align:center;border:1px solid #00f6ff55;border-radius:25px;background:#040b1ddd;box-shadow:0 0 70px #00f6ff22}.title{font-size:clamp(40px,8vw,72px);font-weight:900;color:#00f6ff;text-shadow:0 0 15px #00f6ff,0 0 45px #7c3cff}.btn{padding:15px 30px;border:0;border-radius:13px;color:white;background:linear-gradient(135deg,#00cfff,#743cff);font-weight:bold;font-size:17px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="start"><div class="card"><div class="title">3D ARENA</div><h2>NEON TYPING WARS</h2><p>Type the highlighted passage. Watch the 3D keyboard react, build combos and charge the robot.</p><p>⌨️ Physical keys · 🤖 Robot · 🔥 Combo · ⭐ XP · 🌌 Neon arena</p><button class="btn" onclick="begin()">ENTER THE ARENA</button></div></div>
+
+<div id="hud">
+<div class="top"><div class="logo">⚡ NEON TYPING ARENA</div><div class="stats">
+<div class="stat"><small>WPM</small><b id="wpm">0</b></div><div class="stat"><small>ACCURACY</small><b id="acc">100%</b></div><div class="stat"><small>SCORE</small><b id="score">0</b></div><div class="stat"><small>COMBO</small><b id="comboStat">x1</b></div><div class="stat"><small>LEVEL</small><b id="level">1</b></div>
+</div></div>
+<div id="target">Loading...</div><div id="combo">COMBO x2</div>
+<div id="bar"><div class="label">XP</div><div class="track"><div id="xp" class="fill"></div></div><div class="label">ROBOT ENERGY</div><div class="track"><div id="energy" class="fill energy"></div></div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+<script>
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x02030a);scene.fog=new THREE.FogExp2(0x02030a,.025);
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,1000);camera.position.set(0,5.5,14);
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,2));document.body.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0x4466aa,2));
+const cyan=new THREE.PointLight(0x00f6ff,60,35);cyan.position.set(-8,7,4);scene.add(cyan);
+const purple=new THREE.PointLight(0x7c3cff,70,35);purple.position.set(8,5,0);scene.add(purple);
+
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(50,50,40,40),new THREE.MeshStandardMaterial({color:0x030817,metalness:.8,roughness:.35,wireframe:true}));floor.rotation.x=-Math.PI/2;floor.position.y=-1;scene.add(floor);
+
+for(let i=0;i<5;i++){let r=new THREE.Mesh(new THREE.TorusGeometry(3+i*2,.025,8,80),new THREE.MeshBasicMaterial({color:i%2?0x7c3cff:0x00f6ff}));r.rotation.x=Math.PI/2;r.position.y=-.8;scene.add(r)}
+
+const robot=new THREE.Group();robot.position.set(0,1,4);scene.add(robot);
+const metal=new THREE.MeshStandardMaterial({color:0x182238,metalness:.8,roughness:.2});
+let body=new THREE.Mesh(new THREE.BoxGeometry(1.7,2,1.2),metal);robot.add(body);
+let head=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.2,1.2),metal);head.position.y=1.6;robot.add(head);
+let visor=new THREE.Mesh(new THREE.BoxGeometry(.95,.35,.08),new THREE.MeshBasicMaterial({color:0x00f6ff}));visor.position.set(0,1.65,-.62);robot.add(visor);
+for(let x of [-.25,.25]){let e=new THREE.Mesh(new THREE.SphereGeometry(.09,12,12),new THREE.MeshBasicMaterial({color:0xffffff}));e.position.set(x,1.65,-.68);robot.add(e)}
+for(let x of [-1.1,1.1]){let a=new THREE.Mesh(new THREE.BoxGeometry(.35,1.7,.4),metal);a.position.set(x,.1,0);robot.add(a)}
+
+const keyboard=new THREE.Group();keyboard.position.set(0,0,1.2);scene.add(keyboard);const keys={};
+const rows=["1234567890","QWERTYUIOP","ASDFGHJKL","ZXCVBNM"];
+rows.forEach((row,r)=>{const offset=-(row.length*.8)/2;for(let i=0;i<row.length;i++){let m=new THREE.MeshStandardMaterial({color:0x101b34,emissive:0x001d2a,emissiveIntensity:.7,metalness:.7,roughness:.25});let k=new THREE.Mesh(new THREE.BoxGeometry(.72,.22,.65),m);k.position.set(offset+i*.8+.36,r*.15,r*.75);k.userData.y=k.position.y;k.userData.c=row[i];keyboard.add(k);keys[row[i]]=k}});
+let space=new THREE.Mesh(new THREE.BoxGeometry(5,.22,.65),new THREE.MeshStandardMaterial({color:0x101b34,emissive:0x001d2a,emissiveIntensity:.7,metalness:.7}));space.position.set(0,.5,3.45);space.userData.y=space.position.y;keyboard.add(space);
+
+const pg=new THREE.BufferGeometry(), pos=new Float32Array(1500);for(let i=0;i<1500;i++)pos[i]=(Math.random()-.5)*40;pg.setAttribute("position",new THREE.BufferAttribute(pos,3));scene.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0x00f6ff,size:.035,transparent:true,opacity:.8})));
+
+const passages=["Technology is changing the world and creating new opportunities for people who continue learning.","Programming combines logic creativity and problem solving to transform ideas into useful digital experiences.","Successful developers practice every day and build projects that turn knowledge into real world skills."];
+let target="",typed="",score=0,correct=0,errors=0,combo=1,xp=0,level=1,energy=100,startTime=0,started=false,running=false;
+
+function newTarget(){target=passages[Math.floor(Math.random()*passages.length)];typed="";render()}
+function render(){let h="";for(let i=0;i<target.length;i++){if(i<typed.length)h+=typed[i]===target[i]?`<span class=correct>${target[i]}</span>`:`<span class=wrong>${target[i]}</span>`;else if(i===typed.length)h+=`<span class=current>${target[i]}</span>`;else h+=target[i]}document.getElementById("target").innerHTML=h}
+function press(c){let k=keys[c.toUpperCase()];if(!k)return;k.position.y=k.userData.y-.18;k.material.emissive.set(0x00f6ff);k.material.emissiveIntensity=4;setTimeout(()=>{k.position.y=k.userData.y;k.material.emissive.set(0x001d2a);k.material.emissiveIntensity=.7},100)}
+function begin(){document.getElementById("start").style.display="none";running=true;score=0;correct=0;errors=0;combo=1;xp=0;level=1;energy=100;started=false;newTarget();hud()}
+function gain(n){xp+=n;let need=100+(level-1)*50;if(xp>=need){xp-=need;level++;score+=500;};hud()}
+function hud(){let w=started?Math.round((correct/5)/Math.max((Date.now()-startTime)/60000,.0001)):0;document.getElementById("wpm").textContent=w;document.getElementById("acc").textContent=Math.round(correct/Math.max(correct+errors,1)*100)+"%";document.getElementById("score").textContent=score;document.getElementById("comboStat").textContent="x"+combo.toFixed(1);document.getElementById("level").textContent=level;document.getElementById("xp").style.width=Math.min(xp/(100+(level-1)*50)*100,100)+"%";document.getElementById("energy").style.width=Math.max(energy,0)+"%"}
+function comboPop(){let e=document.getElementById("combo");if(combo<2)return;e.textContent="COMBO x"+combo.toFixed(1);e.classList.remove("show");void e.offsetWidth;e.classList.add("show")}
+
+addEventListener("keydown",e=>{
+if(!running)return;
+if(e.key==="Backspace"){typed=typed.slice(0,-1);render();return}
+if(e.key.length!==1)return;
+if(!started){started=true;startTime=Date.now()}
+press(e.key);
+if(e.key===target[typed.length]){typed+=e.key;correct++;combo=Math.min(combo+.25,20);score+=Math.round(10*combo);gain(Math.round(3*combo));energy=Math.min(100,energy+1);comboPop()}else{errors++;combo=1;energy-=7}
+render();hud();if(typed.length>=target.length){gain(25);newTarget()}
+if(energy<=0)location.reload()
+});
+
+setInterval(()=>{if(running)hud()},500);
+
+const clock=new THREE.Clock();
+function animate(){requestAnimationFrame(animate);let t=clock.getElapsedTime();robot.position.y=1+Math.sin(t*2)*.12;robot.rotation.y=Math.sin(t*.6)*.15;keyboard.rotation.y=Math.sin(t*.35)*.08;keyboard.position.y=Math.sin(t*1.2)*.04;camera.position.x=Math.sin(t*.25)*.8;camera.position.y=5.5+Math.sin(t*.5)*.25;camera.lookAt(0,.5,1);cyan.position.x=Math.sin(t)*8;cyan.position.z=Math.cos(t)*5;purple.position.x=Math.cos(t*.7)*8;renderer.render(scene,camera)}
+animate();
+addEventListener("resize",()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)})
+</script>
+</body>
+</html>
